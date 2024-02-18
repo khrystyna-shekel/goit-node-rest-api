@@ -1,11 +1,12 @@
 import { Schema, model } from "mongoose";
-import { handleSaveError } from "./hooks.js";
+import { handleSaveError, setUpdateSetting } from "./hooks.js";
 
 const contactSchema = new Schema(
   {
     name: {
       type: String,
       required: [true, "Set name for contact"],
+      minlength: 3,
     },
     email: {
       type: String,
@@ -22,6 +23,10 @@ const contactSchema = new Schema(
 );
 
 contactSchema.post("save", handleSaveError);
+
+contactSchema.pre("findOneAndUpdate", setUpdateSetting);
+
+contactSchema.post("findOneAndUpdate", handleSaveError);
 
 const Contact = model("contact", contactSchema);
 
