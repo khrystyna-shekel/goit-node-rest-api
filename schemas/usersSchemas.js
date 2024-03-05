@@ -1,5 +1,4 @@
 import Joi from "joi";
-
 import { emailRegexp } from "../constants/regexp.js";
 
 export const registerSchema = Joi.object({
