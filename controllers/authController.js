@@ -1,12 +1,17 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import "dotenv/config";
+import fs from "fs/promises";
+import path from "path";
+import gravatar from "gravatar";
+import Jimp from "jimp";
 
 import * as authServices from "../services/authServices.js";
 import * as userServices from "../services/userServices.js";
 import HttpError from "../helpers/HttpError.js";
 
 const { JWT_SECRET } = process.env;
+const avatarsDir = path.resolve("public", "avatars");
 
 export const register = async (req, res, next) => {
   try {
@@ -16,11 +21,13 @@ export const register = async (req, res, next) => {
       throw HttpError(409, "Email in use");
     }
 
-    const newUser = await authServices.register(req.body);
+    const avatarURL = gravatar.url(email);
+    const newUser = await authServices.register({ ...req.body, avatarURL });
 
     res.status(201).json({
       email: newUser.email,
       subscription: newUser.subscription,
+      avatarURL: newUser.avatarURL,
     });
   } catch (error) {
     next(error);
@@ -47,7 +54,7 @@ export const login = async (req, res, next) => {
     await authServices.setToken(user._id, token);
 
     res.json({
-      user: { email: newUser.email, subscription: newUser.subscription },
+      user: { email: user.email, subscription: user.subscription },
       token,
     });
   } catch (error) {
@@ -73,6 +80,26 @@ export const logout = async (req, res, next) => {
     res.json({
       message: "Logout success",
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const avatarUpdate = async (req, res, next) => {
+  try {
+    const { _id } = req.user;
+    const { path: oldPath, filename } = req.file;
+    const newPath = path.join(avatarsDir, filename);
+
+    Jimp.read(oldPath, (err, lenna) => {
+      if (err) throw err;
+      lenna.resize(250, 250).write(newPath);
+      fs.rm(oldPath);
+    });
+    const avatarURL = path.join("avatars", filename);
+
+    await authServices.setAvatar(_id, avatarURL);
+    return res.json({ avatarURL });
   } catch (error) {
     next(error);
   }
