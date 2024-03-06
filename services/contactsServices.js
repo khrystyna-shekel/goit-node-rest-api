@@ -21,7 +21,7 @@ export function removeContact(id) {
 }
 
 export function removeContactByFilter(filter) {
-  return Contact.findByOneAndDelete(filter);
+  return Contact.findOneAndDelete(filter);
 }
 
 export function addContact(data) {
@@ -33,7 +33,7 @@ export function updateContact(id, data) {
 }
 
 export function updateContactByFilter(filter, data) {
-  return Contact.findByOneAndUpdate(filter, data);
+  return Contact.findOneAndUpdate(filter, data);
 }
 
 export function updateStatusContact(id, data) {
@@ -41,5 +41,5 @@ export function updateStatusContact(id, data) {
 }
 
 export function updateStatusContactByFilter(filter, data) {
-  return Contact.findByOneAndUpdate(filter, data);
+  return Contact.findOneAndUpdate(filter, data);
 }
