@@ -5,12 +5,14 @@ import fs from "fs/promises";
 import path from "path";
 import gravatar from "gravatar";
 import Jimp from "jimp";
+import { nanoid } from "nanoid";
 
 import * as authServices from "../services/authServices.js";
 import * as userServices from "../services/userServices.js";
 import HttpError from "../helpers/HttpError.js";
+import sendEmail from "../helpers/sendEmail.js";
 
-const { JWT_SECRET } = process.env;
+const { JWT_SECRET, BASE_URL } = process.env;
 const avatarsDir = path.resolve("public", "avatars");
 
 export const register = async (req, res, next) => {
@@ -21,13 +23,74 @@ export const register = async (req, res, next) => {
       throw HttpError(409, "Email in use");
     }
 
+    const verificationCode = nanoid();
+
     const avatarURL = gravatar.url(email);
-    const newUser = await authServices.register({ ...req.body, avatarURL });
+    const newUser = await authServices.register({
+      ...req.body,
+      avatarURL,
+      verificationCode,
+    });
+
+    const verifyEmail = {
+      to: email,
+      subject: "Verify email",
+      html: `<a target="_blank" href="${BASE_URL}/api/users/verify/${verificationCode}">Click to verify your email</a>`,
+    };
+
+    await sendEmail(verifyEmail);
 
     res.status(201).json({
       email: newUser.email,
       subscription: newUser.subscription,
       avatarURL: newUser.avatarURL,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const verify = async (req, res, next) => {
+  try {
+    const { verificationCode } = req.params;
+    const user = await userServices.findUser({ verificationCode });
+
+    if (!user) {
+      throw HttpError(404, "User not found");
+    }
+    await userServices.updateUser(
+      { _id: user._id },
+      { verify: true, verificationCode: "" }
+    );
+    res.json({
+      message: "Verify success",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const resendVerifyEmail = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    const user = await userServices.findUser({ email });
+    if (!user) {
+      throw HttpError(404, "User not found");
+    }
+    if (user.verify) {
+      throw HttpError(400, "User is already verified");
+    }
+
+    const verifyEmail = {
+      to: email,
+      subject: "Verify email",
+      html: `<a target="_blank" href="${BASE_URL}/api/users/verify/${user.verificationCode}">Click to verify your email</a>`,
+    };
+
+    await sendEmail(verifyEmail);
+
+    res.json({
+      message: "Verify email send success",
     });
   } catch (error) {
     next(error);
@@ -40,6 +103,9 @@ export const login = async (req, res, next) => {
     const user = await userServices.findUser({ email });
     if (!user) {
       throw HttpError(401, "Email or password is wrong");
+    }
+    if (!user.verify) {
+      throw HttpError(401, "Email is not verified");
     }
     const passwordCompare = await bcrypt.compare(password, user.password);
     if (!passwordCompare) {
